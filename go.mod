@@ -1,3 +1,3 @@
-module skorpio-go
+module skorpioc
 
 go 1.21.5

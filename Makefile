@@ -2,6 +2,6 @@ MAKEFLAGS += --silent
 
 default:
 	go build;
-	./skorpio-go -c;
+	./skorpioc -c;
 	./skorpio;
-	rm skorpio skorpio-go *.asm *.o;
+	rm skorpio skorpioc *.asm *.o;
