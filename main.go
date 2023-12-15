@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 )
 
 var subscriptCounter = 0
@@ -149,11 +151,42 @@ func compileProgram(program []operation, outFilePath string) {
 	out.WriteString("    syscall\n")
 }
 
-func usage() {
+func parseWordAsOp(word string) operation {
+	assertOps()
+	switch word {
+	case "+":
+		return plus()
+	case "-":
+		return minus()
+	case "=>":
+		return dump()
+	default:
+		num, err := strconv.Atoi(word)
+		if err != nil {
+			panic("Invalid word in program")
+		}
+		return push(num)
+	}
+}
+
+func loadProgramFromFile(filePath string) []operation {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+	words := strings.Fields(string(content))
+	program := make([]operation, len(words))
+	for i, word := range words {
+		program[i] = parseWordAsOp(word)
+	}
+	return program
+}
+
+func usage(programName string) {
 	fmt.Println("Usage: musc <SUBCOMMAND> [ARGS]")
 	fmt.Println("SUBCOMMANDS:")
-	fmt.Println("    -s       Simulate the program")
-	fmt.Println("    -c       Compile the program")
+	fmt.Println("    -s <file>      Simulate the program")
+	fmt.Println("    -c <file>      Compile the program")
 }
 
 func callCmd(cmd []string) {
@@ -167,35 +200,52 @@ func callCmd(cmd []string) {
 	}
 }
 
+func uncons(xs []string) (string, []string) {
+	return xs[0], xs[1:]
+}
+
+func assertOps() {
+	if COUNT_OPS != 4 {
+		panic("Exhaustive op handling in parseWordAsOp")
+	}
+}
+
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		fmt.Println("ERROR: no subcommand is provided")
+	args := os.Args
+	if len(args) < 2 {
+		usage(args[0])
+		fmt.Println("[!] ERROR: no subcommand is provided")
 		os.Exit(1)
 	}
 
-	subcommand := os.Args[1]
-
-	program := []operation{
-		push(16),
-		push(32),
-		plus(),
-		dump(),
-		push(256),
-		push(128),
-		minus(),
-		dump(),
-	}
+	programName, remainingArgs := uncons(args)
+	subcommand, args := uncons(remainingArgs)
 
 	switch subcommand {
 	case "-s":
+		if len(args) < 1 {
+			usage(programName)
+			fmt.Println("[!] ERROR: no input file is provided")
+			os.Exit(1)
+		}
+		programPath, _ := uncons(args)
+		program := loadProgramFromFile(programPath)
 		simulateProgram(program)
+
 	case "-c":
+		if len(args) < 1 {
+			usage(programName)
+			fmt.Println("[!] ERROR: no input file is provided")
+			os.Exit(1)
+		}
+		programPath, _ := uncons(args)
+		program := loadProgramFromFile(programPath)
 		compileProgram(program, "skorpio.asm")
 		callCmd([]string{"nasm", "-felf64", "skorpio.asm"})
 		callCmd([]string{"ld", "-o", "skorpio", "skorpio.o"})
+
 	default:
-		usage()
+		usage(programName)
 		fmt.Printf("ERROR: unknown subcommand %s\n", subcommand)
 		os.Exit(1)
 	}
