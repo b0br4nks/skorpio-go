@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -182,13 +184,6 @@ func loadProgramFromFile(filePath string) []operation {
 	return program
 }
 
-func usage(programName string) {
-	fmt.Println("Usage: musc <SUBCOMMAND> [ARGS]")
-	fmt.Println("SUBCOMMANDS:")
-	fmt.Println("    -s <file>      Simulate the program")
-	fmt.Println("    -c <file>      Compile the program")
-}
-
 func callCmd(cmd []string) {
 	fmt.Println(cmd)
 	command := exec.Command(cmd[0], cmd[1:]...)
@@ -200,8 +195,12 @@ func callCmd(cmd []string) {
 	}
 }
 
-func uncons(xs []string) (string, []string) {
-	return xs[0], xs[1:]
+func usage(compilerName string) {
+	fmt.Printf("Usage: %s <SUBCOMMAND> [ARGS]\n", compilerName)
+	fmt.Println("SUBCOMMANDS:")
+	fmt.Printf("\tsimulate,\t-s <file>\t\tSimulate the program\n")
+	fmt.Printf("\tcompile,\t-c <file>\t\tCompile the program\n")
+	fmt.Printf("\thelp,\t\t-h\t\t\tPrint help to stdout and exit 0\n")
 }
 
 func assertOps() {
@@ -218,34 +217,49 @@ func main() {
 		os.Exit(1)
 	}
 
-	programName, remainingArgs := uncons(args)
-	subcommand, args := uncons(remainingArgs)
+	compilerName, remainingArgs := args[0], args[1:]
+	subcommand, args := remainingArgs[0], remainingArgs[1:]
 
 	switch subcommand {
 	case "-s":
 		if len(args) < 1 {
-			usage(programName)
+			usage(compilerName)
 			fmt.Println("[!] ERROR: no input file is provided")
 			os.Exit(1)
 		}
-		programPath, _ := uncons(args)
+
+		programPath := args[0]
 		program := loadProgramFromFile(programPath)
 		simulateProgram(program)
 
 	case "-c":
 		if len(args) < 1 {
-			usage(programName)
+			usage(compilerName)
 			fmt.Println("[!] ERROR: no input file is provided")
 			os.Exit(1)
 		}
-		programPath, _ := uncons(args)
+
+		programPath := args[0]
 		program := loadProgramFromFile(programPath)
-		compileProgram(program, "skorpio.asm")
-		callCmd([]string{"nasm", "-felf64", "skorpio.asm"})
-		callCmd([]string{"ld", "-o", "skorpio", "skorpio.o"})
+		skorpioExt := ".sko"
+		basename := path.Base(programPath)
+
+		if strings.HasSuffix(basename, skorpioExt) {
+			basename = strings.TrimSuffix(basename, skorpioExt)
+			log.Println(basename)
+		}
+
+		asmFileName := basename + ".asm"
+		compileProgram(program, asmFileName)
+		callCmd([]string{"nasm", "-felf64", asmFileName})
+		callCmd([]string{"ld", "-o", "skorpio", basename + ".o"})
+
+	case "-h":
+		usage(compilerName)
+		os.Exit(0)
 
 	default:
-		usage(programName)
+		usage(compilerName)
 		fmt.Printf("ERROR: unknown subcommand %s\n", subcommand)
 		os.Exit(1)
 	}
